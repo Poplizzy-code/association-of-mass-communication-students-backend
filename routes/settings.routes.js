@@ -1,10 +1,27 @@
 import express from 'express'
+import multer from 'multer'
+import { Readable } from 'stream'
 import User from '../models/User.model.js'
 import Setting from '../models/Setting.model.js'
+import cloudinary from '../utils/cloudinary.js'
 import { protect, staffAdminOnly, studentAdminOnly } from '../middleware/auth.middleware.js'
 
 const router = express.Router()
 router.use(protect)
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+
+const uploadBuffer = (buffer, options) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
+      if (err) return reject(err)
+      resolve(result)
+    })
+    const readable = new Readable()
+    readable.push(buffer)
+    readable.push(null)
+    readable.pipe(stream)
+  })
 
 // ── Personal settings (all authenticated users) ─────────────────────────────
 
@@ -18,6 +35,24 @@ router.put('/personal', async (req, res) => {
     res.json({ success: true, user })
   } catch {
     res.status(500).json({ message: 'Failed to update profile.' })
+  }
+})
+
+router.put('/personal/avatar', upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No image file provided.' })
+    const result = await uploadBuffer(req.file.buffer, {
+      folder: 'amacos/avatars',
+      transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }, { quality: 'auto', fetch_format: 'auto' }],
+    })
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: result.secure_url },
+      { new: true }
+    ).select('-password')
+    res.json({ success: true, user })
+  } catch {
+    res.status(500).json({ message: 'Failed to upload avatar.' })
   }
 })
 
@@ -149,6 +184,74 @@ router.put('/students/:id/toggle-active', studentAdminOnly, async (req, res) => 
     res.json({ success: true, user: updated })
   } catch {
     res.status(500).json({ message: 'Failed to update account status.' })
+  }
+})
+
+// Set a specific student's level (for repeating students)
+router.put('/students/:id/level', staffAdminOnly, async (req, res) => {
+  try {
+    const { level } = req.body
+    const validLevels = ['100', '200', '300', '400']
+    if (!validLevels.includes(level)) {
+      return res.status(400).json({ message: 'Invalid level. Must be 100, 200, 300, or 400.' })
+    }
+    const user = await User.findOne({ _id: req.params.id, accountType: 'student' })
+    if (!user) return res.status(404).json({ message: 'Student not found.' })
+    user.level = level
+    await user.save()
+    const updated = user.toObject()
+    delete updated.password
+    res.json({ success: true, user: updated })
+  } catch {
+    res.status(500).json({ message: 'Failed to update student level.' })
+  }
+})
+
+// ── Session management (staff admin only) ──────────────────────────────────
+
+router.get('/session', staffAdminOnly, async (req, res) => {
+  try {
+    const settings = await Setting.findOne()
+    res.json({ success: true, currentSession: settings?.currentSession || '' })
+  } catch {
+    res.status(500).json({ message: 'Failed to load session.' })
+  }
+})
+
+router.put('/session', staffAdminOnly, async (req, res) => {
+  try {
+    const { currentSession } = req.body
+    if (!currentSession?.trim()) return res.status(400).json({ message: 'Session cannot be empty.' })
+    const settings = await Setting.findOneAndUpdate(
+      {},
+      { currentSession: currentSession.trim() },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, currentSession: settings.currentSession })
+  } catch {
+    res.status(500).json({ message: 'Failed to update session.' })
+  }
+})
+
+// Promote all students by one level (100→200, 200→300, 300→400; 400L stays)
+router.put('/session/promote', staffAdminOnly, async (req, res) => {
+  try {
+    const promotions = [
+      { from: '300', to: '400' },
+      { from: '200', to: '300' },
+      { from: '100', to: '200' },
+    ]
+    let totalPromoted = 0
+    for (const { from, to } of promotions) {
+      const result = await User.updateMany(
+        { accountType: 'student', level: from },
+        { $set: { level: to } }
+      )
+      totalPromoted += result.modifiedCount
+    }
+    res.json({ success: true, totalPromoted, message: `${totalPromoted} students promoted.` })
+  } catch {
+    res.status(500).json({ message: 'Failed to promote students.' })
   }
 })
 
