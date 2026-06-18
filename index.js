@@ -29,15 +29,26 @@ dotenv.config()
 const app = express()
 const httpServer = createServer(app)
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...(process.env.CLIENT_URL || '').split(',').map(s => s.trim()).filter(Boolean),
+]
+const corsOrigin = (origin, cb) => {
+  const ok = !origin
+    || allowedOrigins.includes(origin)
+    || /\.onrender\.com$/.test(origin)
+    || /\.vercel\.app$/.test(origin)
+    || /\.netlify\.app$/.test(origin)
+  cb(null, ok)
+}
+
 export const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CLIENT_URL,
-    credentials: true,
-  },
+  cors: { origin: corsOrigin, credentials: true },
 })
 initSocket(io)
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }))
+app.use(cors({ origin: corsOrigin, credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
 
