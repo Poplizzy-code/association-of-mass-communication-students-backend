@@ -88,7 +88,9 @@ export const logout = (req, res) => {
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password')
-    res.status(200).json({ success: true, user })
+    // Issue a fresh token so the client can persist it in localStorage
+    const token = generateTokenAndSetCookie(res, user._id)
+    res.status(200).json({ success: true, user, token })
   } catch {
     res.status(500).json({ message: 'Server error.' })
   }
