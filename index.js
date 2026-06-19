@@ -23,6 +23,7 @@ import friendRequestsRoutes from './routes/friendRequests.routes.js'
 import notificationsRoutes from './routes/notifications.routes.js'
 import groupRoutes from './routes/group.routes.js'
 import forumRoutes from './routes/forum.routes.js'
+import studentAdminRoutes from './routes/studentAdmin.routes.js'
 import { initSocket } from './utils/socket.js'
 
 dotenv.config()
@@ -71,6 +72,7 @@ app.use('/api/friends', friendRequestsRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/groups', groupRoutes)
 app.use('/api/forum', forumRoutes)
+app.use('/api/student-admin', studentAdminRoutes)
 
 io.on('connection', (socket) => {
   socket.on('join', (userId) => {
