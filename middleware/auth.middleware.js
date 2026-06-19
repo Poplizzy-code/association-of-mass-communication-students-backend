@@ -3,7 +3,10 @@ import User from '../models/User.model.js'
 
 export const protect = async (req, res, next) => {
   try {
+    // Accept token from cookie OR Authorization: Bearer <token> header
+    const authHeader = req.headers.authorization
     const token = req.cookies.amacos_token
+      || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null)
     if (!token) return res.status(401).json({ message: 'Not authorized. Please log in.' })
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findById(decoded.userId).select('-password')

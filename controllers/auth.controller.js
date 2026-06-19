@@ -47,8 +47,8 @@ export const register = async (req, res) => {
       isLecturer:   isStaff, // all staff who self-register are lecturers by default
     })
 
-    generateTokenAndSetCookie(res, user._id)
-    res.status(201).json({ success: true, user: userPayload(user) })
+    const token = generateTokenAndSetCookie(res, user._id)
+    res.status(201).json({ success: true, user: userPayload(user), token })
   } catch (error) {
     console.error('Register error:', error)
     res.status(500).json({ message: 'Server error during registration.' })
@@ -66,8 +66,8 @@ export const login = async (req, res) => {
     if (!isMatch) return res.status(401).json({ message: 'Invalid email or password.' })
     user.lastSeen = new Date()
     await user.save({ validateBeforeSave: false })
-    generateTokenAndSetCookie(res, user._id)
-    res.status(200).json({ success: true, user: userPayload(user) })
+    const token = generateTokenAndSetCookie(res, user._id)
+    res.status(200).json({ success: true, user: userPayload(user), token })
   } catch (error) {
     console.error('Login error:', error)
     res.status(500).json({ message: 'Server error during login.' })
