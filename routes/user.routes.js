@@ -9,6 +9,18 @@ router.get('/', protect, adminOnly, async (req, res) => {
   res.json({ success: true, users })
 })
 
+// Tech Community members
+router.get('/tech-members', protect, async (req, res) => {
+  try {
+    const users = await User.find({ isTechMember: true })
+      .select('fullName accountType level avatar bio')
+      .sort({ fullName: 1 })
+    res.json({ success: true, users })
+  } catch {
+    res.status(500).json({ message: 'Failed to fetch tech members.' })
+  }
+})
+
 // All community members (for DM user picker — includes self for self-messaging)
 router.get('/community', protect, async (req, res) => {
   try {
