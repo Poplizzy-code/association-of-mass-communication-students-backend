@@ -31,28 +31,33 @@ const uploadBuffer = (buffer, options, timeoutMs = 180_000) =>
     readable.pipe(uploadStream)
   })
 
-// Public — get only public posts
+// Public — paginated public posts
 router.get('/public', async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit) : 0
-    let q = Post.find({ isPublic: true })
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 })
-    if (limit > 0) q = q.limit(limit)
-    const posts = await q.exec()
-    res.json({ success: true, posts })
+    const page  = Math.max(1, parseInt(req.query.page)  || 1)
+    const limit = Math.min(50, parseInt(req.query.limit) || 12)
+    const skip  = (page - 1) * limit
+    const [posts, total] = await Promise.all([
+      Post.find({ isPublic: true }).populate('author', 'fullName avatar').sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Post.countDocuments({ isPublic: true }),
+    ])
+    res.json({ success: true, posts, hasMore: skip + posts.length < total, total })
   } catch {
     res.status(500).json({ message: 'Failed to fetch posts.' })
   }
 })
 
-// Authenticated — get all posts (public + AMACOS-only)
+// Authenticated — paginated all posts
 router.get('/', protect, async (req, res) => {
   try {
-    const posts = await Post.find()
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 })
-    res.json({ success: true, posts })
+    const page  = Math.max(1, parseInt(req.query.page)  || 1)
+    const limit = Math.min(50, parseInt(req.query.limit) || 12)
+    const skip  = (page - 1) * limit
+    const [posts, total] = await Promise.all([
+      Post.find().populate('author', 'fullName avatar').sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Post.countDocuments(),
+    ])
+    res.json({ success: true, posts, hasMore: skip + posts.length < total, total })
   } catch {
     res.status(500).json({ message: 'Failed to fetch posts.' })
   }

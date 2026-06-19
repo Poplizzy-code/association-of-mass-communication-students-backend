@@ -75,7 +75,13 @@ export const login = async (req, res) => {
 }
 
 export const logout = (req, res) => {
-  res.cookie('amacos_token', '', { maxAge: 0 })
+  const isProduction = process.env.NODE_ENV === 'production'
+  res.cookie('amacos_token', '', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 0,
+  })
   res.status(200).json({ success: true, message: 'Logged out successfully.' })
 }
 
