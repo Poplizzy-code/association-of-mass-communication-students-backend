@@ -4,8 +4,10 @@ import Event from '../models/Event.model.js'
 import Research from '../models/Research.model.js'
 import Spotlight from '../models/Spotlight.model.js'
 import PressRelease from '../models/PressRelease.model.js'
+import Resource from '../models/Resource.model.js'
+import Setting from '../models/Setting.model.js'
 import { protect, studentAdminOnly } from '../middleware/auth.middleware.js'
-import { uploadNewsImage, uploadEventImage, uploadResearchImage } from '../utils/cloudinary.js'
+import { uploadNewsImage, uploadEventImage, uploadResearchImage, uploadResource } from '../utils/cloudinary.js'
 import cloudinary from '../utils/cloudinary.js'
 
 const router = express.Router()
@@ -141,6 +143,127 @@ router.delete('/events/:id', async (req, res) => {
   if (event.publicId) await cloudinary.uploader.destroy(event.publicId, { resource_type: 'image' }).catch(() => {})
   await event.deleteOne()
   res.json({ success: true })
+})
+
+// ── Resources ─────────────────────────────────────────────────────────────────
+router.get('/resources', async (req, res) => {
+  const resources = await Resource.find({ category: { $ne: 'past-question' } })
+    .populate('uploadedBy', 'fullName')
+    .sort({ createdAt: -1 })
+  res.json({ success: true, resources })
+})
+
+router.post('/resources', runUpload(uploadResource.single('file')), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'File is required.' })
+    const { title, description, category } = req.body
+    if (!title) return res.status(400).json({ message: 'Title is required.' })
+    const resource = await Resource.create({
+      title,
+      description: description || '',
+      category: category || 'lecture-note',
+      fileUrl: req.file.path,
+      publicId: req.file.filename,
+      mimeType: req.file.mimetype || '',
+      originalName: req.file.originalname || '',
+      uploadedBy: req.user._id,
+    })
+    await resource.populate('uploadedBy', 'fullName')
+    res.status(201).json({ success: true, resource })
+  } catch (error) {
+    res.status(500).json({ message: 'Upload failed.', error: error.message })
+  }
+})
+
+router.delete('/resources/:id', async (req, res) => {
+  const resource = await Resource.findById(req.params.id)
+  if (!resource) return res.status(404).json({ message: 'Not found.' })
+  if (resource.publicId) {
+    const type = resource.mimeType?.startsWith('image/') ? 'image'
+      : resource.mimeType?.startsWith('video/') ? 'video' : 'raw'
+    await cloudinary.uploader.destroy(resource.publicId, { resource_type: type }).catch(() => {})
+  }
+  await resource.deleteOne()
+  res.json({ success: true })
+})
+
+// ── Past Questions ────────────────────────────────────────────────────────────
+router.get('/past-questions', async (req, res) => {
+  const resources = await Resource.find({ category: 'past-question' })
+    .populate('uploadedBy', 'fullName')
+    .sort({ createdAt: -1 })
+  res.json({ success: true, resources })
+})
+
+router.post('/past-questions', runUpload(uploadResource.single('file')), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'File is required.' })
+    const { title, description } = req.body
+    if (!title) return res.status(400).json({ message: 'Title is required.' })
+    const resource = await Resource.create({
+      title,
+      description: description || '',
+      category: 'past-question',
+      fileUrl: req.file.path,
+      publicId: req.file.filename,
+      mimeType: req.file.mimetype || '',
+      originalName: req.file.originalname || '',
+      uploadedBy: req.user._id,
+    })
+    await resource.populate('uploadedBy', 'fullName')
+    res.status(201).json({ success: true, resource })
+  } catch (error) {
+    res.status(500).json({ message: 'Upload failed.', error: error.message })
+  }
+})
+
+router.delete('/past-questions/:id', async (req, res) => {
+  const resource = await Resource.findById(req.params.id)
+  if (!resource) return res.status(404).json({ message: 'Not found.' })
+  if (resource.publicId) {
+    const type = resource.mimeType?.startsWith('image/') ? 'image'
+      : resource.mimeType?.startsWith('video/') ? 'video' : 'raw'
+    await cloudinary.uploader.destroy(resource.publicId, { resource_type: type }).catch(() => {})
+  }
+  await resource.deleteOne()
+  res.json({ success: true })
+})
+
+// ── Session Management ────────────────────────────────────────────────────────
+router.get('/session', async (req, res) => {
+  const settings = await Setting.findOne()
+  res.json({ success: true, currentSession: settings?.currentSession || '' })
+})
+
+router.post('/session/advance', async (req, res) => {
+  try {
+    const settings = await Setting.findOne()
+    const current = settings?.currentSession || '2025/2026'
+    const [y1str, y2str] = current.split('/')
+    const y1 = parseInt(y1str) || 2025
+    const y2 = parseInt(y2str) || 2026
+    const nextSession = `${y1 + 1}/${y2 + 1}`
+
+    // Promote in reverse order to avoid double-promotion
+    const promotions = [
+      { from: '300', to: '400' },
+      { from: '200', to: '300' },
+      { from: '100', to: '200' },
+    ]
+    let totalPromoted = 0
+    for (const { from, to } of promotions) {
+      const result = await User.updateMany(
+        { accountType: 'student', level: from },
+        { $set: { level: to } }
+      )
+      totalPromoted += result.modifiedCount
+    }
+
+    await Setting.findOneAndUpdate({}, { currentSession: nextSession }, { upsert: true, new: true })
+    res.json({ success: true, currentSession: nextSession, totalPromoted })
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to advance session.', error: error.message })
+  }
 })
 
 // ── Student Admin Management ───────────────────────────────────────────────────
