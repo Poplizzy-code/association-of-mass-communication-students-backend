@@ -8,6 +8,12 @@ import cloudinary from '../utils/cloudinary.js'
 const router = express.Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
+// Only run multer when the request is multipart (image attached); skip for JSON posts
+const maybeUpload = (req, res, next) => {
+  if (req.is('multipart/form-data')) return upload.single('image')(req, res, next)
+  next()
+}
+
 const uploadBuffer = (buffer, options) =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
@@ -36,7 +42,7 @@ router.get('/', protect, async (req, res) => {
 })
 
 // POST create
-router.post('/', protect, upload.single('image'), async (req, res) => {
+router.post('/', protect, maybeUpload, async (req, res) => {
   try {
     const { content } = req.body
     if (!content?.trim()) return res.status(400).json({ message: 'Content is required.' })
