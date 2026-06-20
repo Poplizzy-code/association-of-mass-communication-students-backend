@@ -41,7 +41,7 @@ router.post('/', protect, async (req, res) => {
       createdBy: req.user._id,
     })
 
-    await group.populate('members', 'fullName accountType level')
+    await group.populate('members', 'fullName accountType level avatar isAlumni')
 
     // Notify all other members via socket
     const io = getIO()
@@ -66,7 +66,7 @@ router.post('/', protect, async (req, res) => {
 router.get('/', protect, async (req, res) => {
   try {
     const groups = await Group.find({ members: req.user._id })
-      .populate('members', 'fullName accountType level')
+      .populate('members', 'fullName accountType level avatar isAlumni')
       .populate('createdBy', 'fullName')
       .sort({ updatedAt: -1 })
     res.json({ success: true, groups })
@@ -79,7 +79,7 @@ router.get('/', protect, async (req, res) => {
 router.get('/:groupId', protect, async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId)
-      .populate('members', 'fullName accountType level')
+      .populate('members', 'fullName accountType level avatar isAlumni')
       .populate('admins', 'fullName')
       .populate('createdBy', 'fullName')
     if (!group) return res.status(404).json({ message: 'Group not found.' })
@@ -173,6 +173,56 @@ router.post('/:groupId/messages', protect, upload.single('media'), async (req, r
   }
 })
 
+// Edit group (admin only)
+router.put('/:groupId', protect, async (req, res) => {
+  try {
+    const { name, description } = req.body
+    const group = await Group.findById(req.params.groupId)
+    if (!group) return res.status(404).json({ message: 'Group not found.' })
+    if (!group.admins.some(a => a.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Only admins can edit this group.' })
+    }
+    if (name?.trim()) group.name = name.trim()
+    if (description !== undefined) group.description = description.trim()
+    await group.save()
+    await group.populate('members', 'fullName accountType level avatar')
+    res.json({ success: true, group })
+  } catch {
+    res.status(500).json({ message: 'Failed to update group.' })
+  }
+})
+
+// Leave group (self)
+router.post('/:groupId/leave', protect, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId)
+    if (!group) return res.status(404).json({ message: 'Group not found.' })
+    group.members = group.members.filter(m => m.toString() !== req.user._id.toString())
+    group.admins  = group.admins.filter(a => a.toString() !== req.user._id.toString())
+    await group.save()
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ message: 'Failed to leave group.' })
+  }
+})
+
+// Delete a single group message (sender or admin)
+router.delete('/:groupId/messages/:messageId', protect, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId)
+    if (!group) return res.status(404).json({ message: 'Group not found.' })
+    const msg = await GroupMessage.findById(req.params.messageId)
+    if (!msg) return res.status(404).json({ message: 'Message not found.' })
+    const isSender = msg.sender.toString() === req.user._id.toString()
+    const isAdmin  = group.admins.some(a => a.toString() === req.user._id.toString())
+    if (!isSender && !isAdmin) return res.status(403).json({ message: 'Not authorised.' })
+    await msg.deleteOne()
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ message: 'Failed to delete message.' })
+  }
+})
+
 // Add members (admin only)
 router.post('/:groupId/members', protect, async (req, res) => {
   try {
@@ -185,7 +235,7 @@ router.post('/:groupId/members', protect, async (req, res) => {
     const newMembers = memberIds.filter(id => !group.members.some(m => m.toString() === id))
     group.members.push(...newMembers)
     await group.save()
-    await group.populate('members', 'fullName accountType level')
+    await group.populate('members', 'fullName accountType level avatar isAlumni')
 
     const io = getIO()
     if (io) {
