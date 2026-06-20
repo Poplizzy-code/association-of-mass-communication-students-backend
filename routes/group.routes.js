@@ -173,8 +173,8 @@ router.post('/:groupId/messages', protect, upload.single('media'), async (req, r
   }
 })
 
-// Edit group (admin only)
-router.put('/:groupId', protect, async (req, res) => {
+// Edit group (admin only) — accepts optional avatar file upload
+router.put('/:groupId', protect, upload.single('avatar'), async (req, res) => {
   try {
     const { name, description } = req.body
     const group = await Group.findById(req.params.groupId)
@@ -184,8 +184,16 @@ router.put('/:groupId', protect, async (req, res) => {
     }
     if (name?.trim()) group.name = name.trim()
     if (description !== undefined) group.description = description.trim()
+    if (req.file) {
+      const result = await uploadBuffer(req.file.buffer, {
+        folder: 'amacos/groups',
+        resource_type: 'image',
+        transformation: [{ width: 200, height: 200, crop: 'fill', quality: 'auto' }],
+      })
+      group.avatar = result.secure_url
+    }
     await group.save()
-    await group.populate('members', 'fullName accountType level avatar')
+    await group.populate('members', 'fullName accountType level avatar isAlumni')
     res.json({ success: true, group })
   } catch {
     res.status(500).json({ message: 'Failed to update group.' })
