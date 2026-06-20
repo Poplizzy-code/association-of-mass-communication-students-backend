@@ -101,7 +101,7 @@ router.get('/:groupId/messages', protect, async (req, res) => {
       return res.status(403).json({ message: 'Not a member.' })
     }
     const messages = await GroupMessage.find({ group: req.params.groupId })
-      .populate('sender', 'fullName accountType')
+      .populate('sender', 'fullName accountType avatar')
       .sort({ createdAt: 1 })
       .limit(100)
     res.json({ success: true, messages })
@@ -150,7 +150,7 @@ router.post('/:groupId/messages', protect, upload.single('media'), async (req, r
       stickerId,
     })
 
-    await message.populate('sender', 'fullName accountType')
+    await message.populate('sender', 'fullName accountType avatar')
 
     // Update group's updatedAt so it sorts to top
     group.updatedAt = new Date()
