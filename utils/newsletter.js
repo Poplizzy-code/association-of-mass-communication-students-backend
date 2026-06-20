@@ -1,7 +1,11 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM   = process.env.RESEND_FROM_EMAIL || 'AMACOS Media <media@amacos.ng>'
+let _resend = null
+const getResend = () => {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY || 'placeholder')
+  return _resend
+}
+const FROM = process.env.RESEND_FROM_EMAIL || 'AMACOS Media <media@amacos.ng>'
 const BASE_URL = process.env.CLIENT_URL?.split(',')[0]?.trim() || 'https://amacos-axsa.onrender.com'
 
 const PLATFORM_LABELS = { tv: 'AMACOS TV', radio: 'AMACOS Radio', newspaper: 'AMACOS Newspaper', magazine: 'AMACOS Magazine' }
@@ -27,7 +31,7 @@ export async function sendPublishedNotification(content, recipientEmails) {
   const chunks = []
   for (let i = 0; i < recipientEmails.length; i += 50) chunks.push(recipientEmails.slice(i, i + 50))
   for (const chunk of chunks) {
-    await resend.emails.send({ from: FROM, bcc: chunk, subject: `New on ${platformLabel}: ${content.title}`, html }).catch(console.error)
+    await getResend().emails.send({ from: FROM, bcc: chunk, subject: `New on ${platformLabel}: ${content.title}`, html }).catch(console.error)
   }
 }
 
@@ -75,7 +79,7 @@ export async function sendWeeklyDigest(contentByPlatform, subscriberMap) {
   for (let i = 0; i < allEmails.length; i += 50) chunks.push(allEmails.slice(i, i + 50))
   let sent = 0
   for (const chunk of chunks) {
-    const res = await resend.emails.send({ from: FROM, bcc: chunk, subject: 'AMACOS Media Weekly Digest', html }).catch(console.error)
+    const res = await getResend().emails.send({ from: FROM, bcc: chunk, subject: 'AMACOS Media Weekly Digest', html }).catch(console.error)
     if (res?.id) sent += chunk.length
   }
   return { sent }
