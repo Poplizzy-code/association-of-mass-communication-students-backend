@@ -46,10 +46,40 @@ const postMediaStorage = new CloudinaryStorage({
   }),
 })
 
-export const uploadResource    = multer({ storage: resourceStorage })
-export const uploadNewsImage   = multer({ storage: newsImageStorage })
-export const uploadEventImage  = multer({ storage: makeImageStorage('events') })
+const mediaVideoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: 'amacos/media/tv',
+    resource_type: 'video',
+    public_id: `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+  }),
+})
+
+const mediaAudioStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: 'amacos/media/radio',
+    resource_type: 'video', // Cloudinary uses 'video' resource_type for audio too
+    public_id: `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+  }),
+})
+
+const mediaImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: 'amacos/media/images',
+    resource_type: 'image',
+    public_id: `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+  }),
+})
+
+export const uploadResource      = multer({ storage: resourceStorage })
+export const uploadNewsImage     = multer({ storage: newsImageStorage })
+export const uploadEventImage    = multer({ storage: makeImageStorage('events') })
 export const uploadResearchImage = multer({ storage: makeImageStorage('research') })
 export const uploadAssignmentFile = multer({ storage: resourceStorage })
-export const uploadPostMedia      = multer({ storage: postMediaStorage })
+export const uploadPostMedia     = multer({ storage: postMediaStorage })
+export const uploadMediaVideo    = multer({ storage: mediaVideoStorage, limits: { fileSize: 500 * 1024 * 1024 } })
+export const uploadMediaAudio    = multer({ storage: mediaAudioStorage, limits: { fileSize: 100 * 1024 * 1024 } })
+export const uploadMediaImage    = multer({ storage: mediaImageStorage })
 export default cloudinary

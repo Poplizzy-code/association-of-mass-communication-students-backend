@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
     avatar:         { type: String, default: '' },
     bio:            { type: String, default: '' },
     isTechMember:   { type: Boolean, default: false },
+    mediaRole:      { type: String, enum: ['', 'publisher', 'editor', 'chief-editor'], default: '' },
     lastSeen:       { type: Date, default: Date.now },
   },
   { timestamps: true }

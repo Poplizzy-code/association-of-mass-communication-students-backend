@@ -52,3 +52,27 @@ export const techMemberOnly = (req, res, next) => {
 
 // Backward-compat alias used by admin.routes.js
 export const adminOnly = staffAdminOnly
+
+// Any user with a media role (can create/submit content)
+export const mediaRoleOnly = (req, res, next) => {
+  if (!req.user.mediaRole) {
+    return res.status(403).json({ message: 'A media role (publisher, editor, or chief-editor) is required.' })
+  }
+  next()
+}
+
+// Editor or chief-editor (can approve/reject content)
+export const mediaEditorOnly = (req, res, next) => {
+  if (!['editor', 'chief-editor'].includes(req.user.mediaRole)) {
+    return res.status(403).json({ message: 'Media editor role required.' })
+  }
+  next()
+}
+
+// Chief-editor only
+export const mediaChiefOnly = (req, res, next) => {
+  if (req.user.mediaRole !== 'chief-editor') {
+    return res.status(403).json({ message: 'Chief editor role required.' })
+  }
+  next()
+}

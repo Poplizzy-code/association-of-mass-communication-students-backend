@@ -24,6 +24,10 @@ import notificationsRoutes from './routes/notifications.routes.js'
 import groupRoutes from './routes/group.routes.js'
 import forumRoutes from './routes/forum.routes.js'
 import studentAdminRoutes from './routes/studentAdmin.routes.js'
+import mediaChannelsRoutes from './routes/media.channels.routes.js'
+import mediaContentRoutes from './routes/media.content.routes.js'
+import mediaRolesRoutes from './routes/media.roles.routes.js'
+import mediaNewsletterRoutes from './routes/media.newsletter.routes.js'
 import { initSocket } from './utils/socket.js'
 
 dotenv.config()
@@ -74,6 +78,10 @@ app.use('/api/notifications', notificationsRoutes)
 app.use('/api/groups', groupRoutes)
 app.use('/api/forum', forumRoutes)
 app.use('/api/student-admin', studentAdminRoutes)
+app.use('/api/media/channels',   mediaChannelsRoutes)
+app.use('/api/media/content',    mediaContentRoutes)
+app.use('/api/media/roles',      mediaRolesRoutes)
+app.use('/api/media/newsletter', mediaNewsletterRoutes)
 
 io.on('connection', (socket) => {
   socket.on('join', (userId) => {
