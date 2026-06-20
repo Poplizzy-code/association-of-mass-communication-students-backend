@@ -28,6 +28,7 @@ import mediaChannelsRoutes from './routes/media.channels.routes.js'
 import mediaContentRoutes from './routes/media.content.routes.js'
 import mediaRolesRoutes from './routes/media.roles.routes.js'
 import mediaNewsletterRoutes from './routes/media.newsletter.routes.js'
+import pulseRoutes from './routes/pulse.routes.js'
 import { initSocket } from './utils/socket.js'
 
 dotenv.config()
@@ -82,6 +83,7 @@ app.use('/api/media/channels',   mediaChannelsRoutes)
 app.use('/api/media/content',    mediaContentRoutes)
 app.use('/api/media/roles',      mediaRolesRoutes)
 app.use('/api/media/newsletter', mediaNewsletterRoutes)
+app.use('/api/pulse', pulseRoutes)
 
 io.on('connection', (socket) => {
   socket.on('join', (userId) => {

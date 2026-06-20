@@ -73,18 +73,7 @@ router.get('/:userId', protect, async (req, res) => {
       { read: true }
     )
 
-    const friendStatus = await getFriendStatus(req.user._id, req.params.userId)
-
-    // How many messages current user has already sent (to show limit info)
-    let sentCount = 0
-    if (friendStatus !== 'accepted' && friendStatus !== 'self') {
-      sentCount = await Message.countDocuments({
-        sender: req.user._id,
-        recipient: req.params.userId,
-      })
-    }
-
-    res.json({ success: true, messages, friendStatus, sentCount })
+    res.json({ success: true, messages })
   } catch {
     res.status(500).json({ message: 'Failed to load conversation.' })
   }
@@ -103,21 +92,6 @@ router.post('/', protect, upload.single('media'), async (req, res) => {
     if (!isSelf) {
       const recipient = await User.findById(recipientId)
       if (!recipient) return res.status(404).json({ message: 'User not found.' })
-
-      const friendStatus = await getFriendStatus(req.user._id, recipientId)
-
-      if (friendStatus !== 'accepted') {
-        const sentCount = await Message.countDocuments({
-          sender: req.user._id,
-          recipient: recipientId,
-        })
-        if (sentCount >= 3) {
-          return res.status(403).json({
-            message: 'Message limit reached. Send a friend request to continue.',
-            code: 'FRIEND_REQUIRED',
-          })
-        }
-      }
     }
 
     // Upload media to Cloudinary if attached
