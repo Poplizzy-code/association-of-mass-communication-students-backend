@@ -244,13 +244,17 @@ router.post('/session/advance', async (req, res) => {
     const y2 = parseInt(y2str) || 2026
     const nextSession = `${y1 + 1}/${y2 + 1}`
 
-    // Promote in reverse order to avoid double-promotion
+    // Graduate 400L → alumni first, then promote in reverse order
+    const graduated = await User.updateMany(
+      { accountType: 'student', level: '400' },
+      { $set: { level: 'alumni', isAlumni: true } }
+    )
     const promotions = [
       { from: '300', to: '400' },
       { from: '200', to: '300' },
       { from: '100', to: '200' },
     ]
-    let totalPromoted = 0
+    let totalPromoted = graduated.modifiedCount
     for (const { from, to } of promotions) {
       const result = await User.updateMany(
         { accountType: 'student', level: from },

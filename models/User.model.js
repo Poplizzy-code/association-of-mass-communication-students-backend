@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema(
     email:          { type: String, required: true, unique: true, lowercase: true },
     password:       { type: String, required: true, minlength: 6 },
     matricNumber:   { type: String, default: '' },
-    level:          { type: String, enum: ['100', '200', '300', '400', 'staff'], default: '100' },
+    level:          { type: String, enum: ['100', '200', '300', '400', 'alumni', 'staff'], default: '100' },
+    isAlumni:       { type: Boolean, default: false },
 
     // Account classification
     accountType:    { type: String, enum: ['student', 'staff'], default: 'student' },
