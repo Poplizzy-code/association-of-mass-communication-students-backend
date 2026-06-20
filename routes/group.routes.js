@@ -296,4 +296,57 @@ router.delete('/:groupId', protect, async (req, res) => {
   }
 })
 
+// ── Get public groups (browseable by all) ────────────────────────────────
+router.get('/public', protect, async (req, res) => {
+  try {
+    const groups = await Group.find({ isPublic: true })
+      .populate('members', 'fullName accountType level avatar')
+      .sort({ createdAt: -1 })
+    res.json({ success: true, groups })
+  } catch { res.status(500).json({ message: 'Failed to load public groups.' }) }
+})
+
+// ── Toggle public/private + generate invite code ──────────────────────────
+router.put('/:id/settings', protect, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id)
+    if (!group) return res.status(404).json({ message: 'Not found.' })
+    const isAdmin = group.admins.some(a => a.toString() === req.user._id.toString())
+    if (!isAdmin) return res.status(403).json({ message: 'Admins only.' })
+
+    if (typeof req.body.isPublic === 'boolean') group.isPublic = req.body.isPublic
+
+    if (req.body.generateInviteCode) {
+      const { randomUUID } = await import('crypto')
+      group.inviteCode = randomUUID()
+    }
+    if (req.body.clearInviteCode) group.inviteCode = ''
+
+    await group.save()
+    res.json({ success: true, group })
+  } catch (err) { res.status(500).json({ message: 'Failed to update settings.' }) }
+})
+
+// ── Join group via invite code ────────────────────────────────────────────
+router.post('/join/:code', protect, async (req, res) => {
+  try {
+    const group = await Group.findOne({ inviteCode: req.params.code })
+      .populate('members', 'fullName accountType level avatar')
+    if (!group) return res.status(404).json({ message: 'Invalid or expired invite link.' })
+
+    const alreadyMember = group.members.some(m => m._id.toString() === req.user._id.toString())
+    if (!alreadyMember) {
+      group.members.push(req.user._id)
+      await group.save()
+      await group.populate('members', 'fullName accountType level avatar')
+      getIO()?.to(`user:${req.user._id}`).emit('group_added', {
+        group,
+        addedBy: { _id: req.user._id, fullName: req.user.fullName },
+      })
+    }
+
+    res.json({ success: true, group, alreadyMember })
+  } catch { res.status(500).json({ message: 'Failed to join group.' }) }
+})
+
 export default router

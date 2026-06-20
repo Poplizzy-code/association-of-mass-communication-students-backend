@@ -6,12 +6,12 @@ const notificationSchema = new mongoose.Schema(
     sender:         { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     type:           {
       type: String,
-      enum: ['message', 'friend_request', 'friend_accepted', 'post_like', 'post_comment', 'election'],
+      enum: ['message', 'friend_request', 'friend_accepted', 'post_like', 'post_comment', 'election', 'community'],
       required: true,
     },
     content:        { type: String },
     referenceId:    { type: mongoose.Schema.Types.ObjectId },
-    referenceModel: { type: String, enum: ['Post', 'Message', 'FriendRequest', 'Election'] },
+    referenceModel: { type: String, enum: ['Post', 'Message', 'FriendRequest', 'Election', 'Community'] },
     read:           { type: Boolean, default: false },
   },
   { timestamps: true }
