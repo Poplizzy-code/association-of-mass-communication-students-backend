@@ -76,12 +76,24 @@ router.get('/:id', protect, async (req, res) => {
 router.put('/:id', protect, async (req, res) => {
   if (!isAdmin(req.user)) return res.status(403).json({ message: 'Admin only.' })
   try {
+    const ALLOWED = [
+      'title', 'description', 'status',
+      'formPickingStart', 'formPickingDeadline',
+      'votingStart', 'votingDeadline',
+      'votingRequirements', 'resultsVisibility',
+      'positions', 'bankName', 'accountNumber', 'accountName', 'paymentNote',
+    ]
     const election = await Election.findById(req.params.id)
     if (!election) return res.status(404).json({ message: 'Not found.' })
-    Object.assign(election, req.body)
+    for (const key of ALLOWED) {
+      if (key in req.body) election[key] = req.body[key]
+    }
     await election.save()
     res.json({ success: true, election })
-  } catch { res.status(500).json({ message: 'Failed to update.' }) }
+  } catch (err) {
+    console.error('PUT election error:', err)
+    res.status(500).json({ message: err.message || 'Failed to update.' })
+  }
 })
 
 // ── Advance status ─────────────────────────────────────────────────────────
