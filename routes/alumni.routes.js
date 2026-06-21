@@ -49,10 +49,24 @@ router.get('/profiles', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message: 'Failed to load profiles.' }) }
 })
 
-// GET /profiles/mine — my own profile
+// GET /profiles/mine — my own profile (auto-creates for alumni if missing)
 router.get('/profiles/mine', protect, async (req, res) => {
   try {
-    const profile = await AlumniProfile.findOne({ user: req.user._id })
+    let profile = await AlumniProfile.findOne({ user: req.user._id })
+
+    // Auto-generate from user account if alumni but no profile yet
+    if (!profile && req.user.isAlumni) {
+      profile = await AlumniProfile.create({
+        user: req.user._id,
+        submittedBy: req.user._id,
+        fullName: req.user.fullName,
+        avatar: req.user.avatar || '',
+        graduationYear: new Date().getFullYear(),
+        field: 'other',
+        status: 'approved',
+      })
+    }
+
     const opportunities = profile
       ? await AlumniOpportunity.find({ postedBy: req.user._id }).sort({ createdAt: -1 })
       : []

@@ -1,5 +1,6 @@
 import express from 'express'
 import User from '../models/User.model.js'
+import AlumniProfile from '../models/AlumniProfile.model.js'
 import Event from '../models/Event.model.js'
 import Research from '../models/Research.model.js'
 import Spotlight from '../models/Spotlight.model.js'
@@ -244,11 +245,32 @@ router.post('/session/advance', async (req, res) => {
     const y2 = parseInt(y2str) || 2026
     const nextSession = `${y1 + 1}/${y2 + 1}`
 
+    // Fetch 400L students before promoting so we can create their alumni profiles
+    const toGraduate = await User.find({ accountType: 'student', level: '400' }).select('_id fullName avatar')
+
     // Graduate 400L → alumni first, then promote in reverse order
     const graduated = await User.updateMany(
       { accountType: 'student', level: '400' },
       { $set: { level: 'alumni', isAlumni: true } }
     )
+
+    // Auto-create AlumniProfile for each newly graduated student
+    for (const u of toGraduate) {
+      try {
+        const exists = await AlumniProfile.findOne({ user: u._id })
+        if (!exists) {
+          await AlumniProfile.create({
+            user: u._id,
+            submittedBy: u._id,
+            fullName: u.fullName,
+            avatar: u.avatar || '',
+            graduationYear: new Date().getFullYear(),
+            field: 'other',
+            status: 'approved',
+          })
+        }
+      } catch (_) { /* skip duplicate */ }
+    }
     const promotions = [
       { from: '300', to: '400' },
       { from: '200', to: '300' },
