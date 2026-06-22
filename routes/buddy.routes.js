@@ -1,18 +1,21 @@
 import express from 'express'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 import { protect } from '../middleware/auth.middleware.js'
 
 const router = express.Router()
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-// Quick diagnostic — visit /api/buddy/ping in browser to check key is loaded
+// Quick diagnostic — visit /api/buddy/ping in browser
 router.get('/ping', async (req, res) => {
-  const keyLoaded = !!process.env.GEMINI_API_KEY
+  const keyLoaded = !!process.env.GROQ_API_KEY
   try {
-    const result = await model.generateContent('Say "Buddy online!" in 3 words.')
-    res.json({ ok: true, keyLoaded, response: result.response.text() })
+    const result = await groq.chat.completions.create({
+      model: 'llama3-8b-8192',
+      messages: [{ role: 'user', content: 'Say "Buddy online!" in 3 words.' }],
+      max_tokens: 20,
+    })
+    res.json({ ok: true, keyLoaded, response: result.choices[0].message.content })
   } catch (err) {
     res.json({ ok: false, keyLoaded, error: err.message })
   }
@@ -53,30 +56,27 @@ Currently on: ${pageLabel}
 ${timeOnPage ? `Time on this page: ~${timeOnPage} minutes` : ''}
 `.trim()
 
-    // Build chat with history
-    const chat = model.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: `${SYSTEM_PROMPT}\n\n${contextBlock}\n\nStart conversation.` }],
-        },
-        {
-          role: 'model',
-          parts: [{ text: `Alright! I'm Buddy, ready to roll with ${userName}. What's good?` }],
-        },
-        ...history.map(m => ({
-          role: m.role === 'buddy' ? 'model' : 'user',
-          parts: [{ text: m.text }],
-        })),
-      ],
+    const chatMessages = [
+      { role: 'system', content: `${SYSTEM_PROMPT}\n\n${contextBlock}` },
+      ...history.slice(-10).map(m => ({
+        role: m.role === 'buddy' ? 'assistant' : 'user',
+        content: m.text,
+      })),
+      { role: 'user', content: message },
+    ]
+
+    const result = await groq.chat.completions.create({
+      model: 'llama3-8b-8192',
+      messages: chatMessages,
+      max_tokens: 200,
+      temperature: 0.85,
     })
 
-    const result = await chat.sendMessage(message)
-    const reply = result.response.text()
+    const reply = result.choices[0].message.content
 
     res.json({ reply })
   } catch (err) {
-    console.error('Buddy error:', err.message, err.status, err.errorDetails)
+    console.error('Buddy error:', err.message)
     res.status(500).json({ reply: "Abeg my signal cut 😅 try again?", _debug: err.message })
   }
 })
