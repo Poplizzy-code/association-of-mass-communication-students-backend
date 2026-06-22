@@ -4,13 +4,18 @@ import { protect } from '../middleware/auth.middleware.js'
 
 const router = express.Router()
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+// Initialise lazily so missing key doesn't crash the server on startup
+let groq = null
+const getGroq = () => {
+  if (!groq) groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+  return groq
+}
 
 // Quick diagnostic — visit /api/buddy/ping in browser
 router.get('/ping', async (req, res) => {
   const keyLoaded = !!process.env.GROQ_API_KEY
   try {
-    const result = await groq.chat.completions.create({
+    const result = await getGroq().chat.completions.create({
       model: 'llama3-8b-8192',
       messages: [{ role: 'user', content: 'Say "Buddy online!" in 3 words.' }],
       max_tokens: 20,
@@ -65,7 +70,7 @@ ${timeOnPage ? `Time on this page: ~${timeOnPage} minutes` : ''}
       { role: 'user', content: message },
     ]
 
-    const result = await groq.chat.completions.create({
+    const result = await getGroq().chat.completions.create({
       model: 'llama3-8b-8192',
       messages: chatMessages,
       max_tokens: 200,
