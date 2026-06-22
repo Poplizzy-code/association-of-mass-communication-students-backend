@@ -5,7 +5,18 @@ import { protect } from '../middleware/auth.middleware.js'
 const router = express.Router()
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' })
+
+// Quick diagnostic — visit /api/buddy/ping in browser to check key is loaded
+router.get('/ping', async (req, res) => {
+  const keyLoaded = !!process.env.GEMINI_API_KEY
+  try {
+    const result = await model.generateContent('Say "Buddy online!" in 3 words.')
+    res.json({ ok: true, keyLoaded, response: result.response.text() })
+  } catch (err) {
+    res.json({ ok: false, keyLoaded, error: err.message })
+  }
+})
 
 const SYSTEM_PROMPT = `You are Buddy — the AI campus companion for AMACOS (Association of Mass Communication Students) at Adeleke University, Nigeria.
 
@@ -65,8 +76,8 @@ ${timeOnPage ? `Time on this page: ~${timeOnPage} minutes` : ''}
 
     res.json({ reply })
   } catch (err) {
-    console.error('Buddy error:', err.message)
-    res.status(500).json({ reply: "Abeg my brain freeze small 😅 try again?" })
+    console.error('Buddy error:', err.message, err.status, err.errorDetails)
+    res.status(500).json({ reply: "Abeg my signal cut 😅 try again?", _debug: err.message })
   }
 })
 
