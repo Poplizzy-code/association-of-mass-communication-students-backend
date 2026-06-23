@@ -1,6 +1,9 @@
 import express from 'express'
 import Groq from 'groq-sdk'
 import { protect } from '../middleware/auth.middleware.js'
+import Resource from '../models/Resource.model.js'
+import Assignment from '../models/Assignment.model.js'
+import CBTQuestion from '../models/CBTQuestion.model.js'
 
 const router = express.Router()
 
@@ -21,6 +24,66 @@ router.get('/ping', async (req, res) => {
     res.json({ ok: true, keyLoaded, response: result.choices[0].message.content })
   } catch (err) {
     res.json({ ok: false, keyLoaded, error: err.message })
+  }
+})
+
+// ── Platform resource lookup ──────────────────────────────────────────────────
+// Called by Buddy widget when student references a title or asks for help.
+// Returns matching resources, assignments, and CBT questions as plain text context.
+router.get('/lookup', protect, async (req, res) => {
+  const q = (req.query.q || '').trim()
+  if (!q) return res.json({ context: '' })
+
+  const regex = new RegExp(q.split(/\s+/).join('|'), 'i')
+
+  try {
+    const [resources, assignments, cbtQuestions] = await Promise.all([
+      Resource.find({ $or: [{ title: regex }, { description: regex }, { category: regex }] })
+        .select('title description category fileUrl mimeType originalName createdAt')
+        .sort({ createdAt: -1 }).limit(5).lean(),
+
+      Assignment.find({ $or: [{ title: regex }, { course: regex }, { description: regex }] })
+        .select('title course description dueDate fileUrl createdAt')
+        .sort({ createdAt: -1 }).limit(5).lean(),
+
+      CBTQuestion.find({ $or: [{ course: regex }, { question: regex }] })
+        .select('course question optionA optionB optionC optionD correctAnswer explanation')
+        .limit(10).lean(),
+    ])
+
+    const parts = []
+
+    if (resources.length) {
+      parts.push('=== PLATFORM RESOURCES ===')
+      resources.forEach(r => {
+        parts.push(`• [${r.category}] ${r.title}${r.description ? ` — ${r.description}` : ''}`)
+        if (r.fileUrl) parts.push(`  Download: ${r.fileUrl}`)
+      })
+    }
+
+    if (assignments.length) {
+      parts.push('=== ASSIGNMENTS ===')
+      assignments.forEach(a => {
+        const due = a.dueDate ? new Date(a.dueDate).toDateString() : 'TBD'
+        parts.push(`• [${a.course}] ${a.title} (due ${due})`)
+        if (a.description) parts.push(`  Brief: ${a.description}`)
+        if (a.fileUrl) parts.push(`  File: ${a.fileUrl}`)
+      })
+    }
+
+    if (cbtQuestions.length) {
+      parts.push('=== CBT PAST QUESTIONS ===')
+      cbtQuestions.forEach((q, i) => {
+        parts.push(`Q${i + 1}. [${q.course}] ${q.question}`)
+        parts.push(`   A) ${q.optionA}  B) ${q.optionB}  C) ${q.optionC}  D) ${q.optionD}`)
+        parts.push(`   Answer: ${q.correctAnswer}${q.explanation ? `  — ${q.explanation}` : ''}`)
+      })
+    }
+
+    res.json({ context: parts.join('\n'), counts: { resources: resources.length, assignments: assignments.length, cbt: cbtQuestions.length } })
+  } catch (err) {
+    console.error('Buddy lookup error:', err.message)
+    res.json({ context: '' })
   }
 })
 
@@ -104,12 +167,22 @@ Use these naturally (don't overdo it):
 - Understand the stress of 400L students (projects, NYSC forms, etc.)
 - Know that 100L students are usually lost and overwhelmed
 
+═══ WHEN PLATFORM DATA IS SHOWN ═══
+You may receive a [Platform data matching student's request] block with real content from the AMACOS database.
+This could be resources, assignments, or CBT past questions.
+- Use this data to directly help the student — cite titles, due dates, download links
+- If there are past questions, read them out and help the student practice
+- If it's an assignment, discuss the brief and help them plan their approach (guide, don't write it for them)
+- If a resource has a fileUrl, tell the student they can download it from that link
+- If no platform data is found, rely on your general knowledge
+- Always stay in Naija campus bestie character even when being academic
+
 ═══ WHEN A FILE IS SHARED ═══
-- If a student pastes text from a resource, past question, or assignment — help them understand it
-- Break it down in simple terms
-- If it looks like exam questions, help them practice
-- If it's an assignment brief, help them plan their approach (don't write it for them fully)
-- Stay in your Naija campus bestie character even when being academic
+- If a student shares a PDF or text file — read the content and help them understand it
+- Break it down in simple terms, give examples
+- If it looks like exam questions, quiz the student and explain answers
+- If it's an assignment brief, help them plan their approach
+- If the file couldn't be read (binary/image), acknowledge it and ask them to describe what they need help with
 
 ═══ RULES ═══
 - 1–3 sentences MAX per reply. Always.
@@ -121,7 +194,7 @@ Use these naturally (don't overdo it):
 
 router.post('/chat', protect, async (req, res) => {
   try {
-    const { message, context = {}, history = [], fileContent = null, fileName = null } = req.body
+    const { message, context = {}, history = [], fileContent = null, fileName = null, platformContext = '' } = req.body
     const { page, timeOnPage, hour } = context
 
     const userName = req.user.fullName?.split(' ')[0] || 'boss'
@@ -135,12 +208,13 @@ router.post('/chat', protect, async (req, res) => {
 Name: ${userName}
 ${level ? `Level: ${level}` : `Role: ${accountType}`}
 Current time: ${timeLabel} (hour ${hour})
-Currently on: ${pageLabel}${timeOnPage ? `\nTime on this page: ~${timeOnPage} minutes` : ''}`
+Currently on: ${pageLabel}${timeOnPage ? `\nTime on this page: ~${timeOnPage} minutes` : ''}${platformContext ? `\n\n[Platform data matching student's request]\n${platformContext}` : ''}`
 
     // Build user message — include file content if provided
-    let userMessage = message
+    let userMessage = message || ''
     if (fileContent && fileName) {
-      userMessage = `[Student shared a file: ${fileName}]\n\n${fileContent.slice(0, 3000)}${fileContent.length > 3000 ? '\n...[file truncated]' : ''}\n\nStudent says: ${message || 'Can you help me with this?'}`
+      const truncated = fileContent.length > 6000 ? fileContent.slice(0, 6000) + '\n...[file truncated]' : fileContent
+      userMessage = `[Student shared a file: ${fileName}]\n\n${truncated}\n\nStudent says: ${message || 'Can you help me with this?'}`
     }
 
     const chatMessages = [
