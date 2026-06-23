@@ -16,7 +16,7 @@ router.get('/ping', async (req, res) => {
   const keyLoaded = !!process.env.GROQ_API_KEY
   try {
     const result = await getGroq().chat.completions.create({
-      model: 'llama3-8b-8192',
+      model: 'llama-3.1-8b-instant',
       messages: [{ role: 'user', content: 'Say "Buddy online!" in 3 words.' }],
       max_tokens: 20,
     })
@@ -71,7 +71,7 @@ ${timeOnPage ? `Time on this page: ~${timeOnPage} minutes` : ''}
     ]
 
     const result = await getGroq().chat.completions.create({
-      model: 'llama3-8b-8192',
+      model: 'llama-3.1-8b-instant',
       messages: chatMessages,
       max_tokens: 200,
       temperature: 0.85,
