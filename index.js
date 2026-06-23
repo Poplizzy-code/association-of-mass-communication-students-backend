@@ -34,6 +34,7 @@ import communityRoutes from './routes/community.routes.js'
 import alumniRoutes from './routes/alumni.routes.js'
 import buddyRoutes from './routes/buddy.routes.js'
 import creditsRoutes from './routes/credits.routes.js'
+import executivesRoutes from './routes/executives.routes.js'
 import { initSocket } from './utils/socket.js'
 
 dotenv.config()
@@ -94,6 +95,7 @@ app.use('/api/communities', communityRoutes)
 app.use('/api/alumni', alumniRoutes)
 app.use('/api/buddy', buddyRoutes)
 app.use('/api/credits', creditsRoutes)
+app.use('/api/executives', executivesRoutes)
 
 io.on('connection', (socket) => {
   socket.on('join', (userId) => {
