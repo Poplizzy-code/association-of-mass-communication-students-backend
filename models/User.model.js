@@ -27,6 +27,7 @@ const userSchema = new mongoose.Schema(
     bio:            { type: String, default: '' },
     isTechMember:   { type: Boolean, default: false },
     mediaRole:      { type: String, enum: ['', 'publisher', 'editor', 'chief-editor'], default: '' },
+    credits:        { type: Number, default: 20 },   // 20 starter credits on signup
     lastSeen:       { type: Date, default: Date.now },
   },
   { timestamps: true }

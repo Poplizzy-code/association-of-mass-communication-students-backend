@@ -16,6 +16,7 @@ const userPayload = (user) => ({
   avatar:         user.avatar,
   bio:            user.bio,
   isTechMember:   user.isTechMember,
+  credits:        user.credits ?? 20,
 })
 
 export const register = async (req, res) => {
@@ -95,3 +96,7 @@ export const getMe = async (req, res) => {
     res.status(500).json({ message: 'Server error.' })
   }
 }
+
+
+// c:\Users\Just Lovely\OneDrive\Documents\JUMOKE PRA\amacos signuppage.png
+// c:\Users\Just Lovely\OneDrive\Documents\JUMOKE PRA\communication illustration.png
