@@ -1,28 +1,16 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-let transporter = null
-
-const getTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    })
-  }
-  return transporter
-}
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 const clientUrl = () => (process.env.CLIENT_URL || '').split(',')[0].trim() || 'http://localhost:5173'
+const fromAddress = () => process.env.RESEND_FROM || 'AMACOS Platform <onboarding@resend.dev>'
 
 export const sendVerificationEmail = async (to, fullName, token) => {
   const link = `${clientUrl()}/verify-email?token=${token}`
   const firstName = fullName?.split(' ')[0] || 'there'
 
-  await getTransporter().sendMail({
-    from: `"AMACOS Platform" <${process.env.GMAIL_USER}>`,
+  const { error } = await resend.emails.send({
+    from: fromAddress(),
     to,
     subject: 'Verify your AMACOS account',
     html: `
@@ -33,7 +21,6 @@ export const sendVerificationEmail = async (to, fullName, token) => {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:40px 16px">
     <tr><td align="center">
       <table width="100%" style="max-width:480px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-        <!-- Header -->
         <tr>
           <td style="background:linear-gradient(135deg,#060d1a 0%,#1a3c5e 100%);padding:32px 40px;text-align:center">
             <div style="display:inline-flex;align-items:center;gap:10px">
@@ -43,7 +30,6 @@ export const sendVerificationEmail = async (to, fullName, token) => {
             <p style="color:#60a5fa;font-size:12px;margin:6px 0 0">Adeleke University · Mass Communication</p>
           </td>
         </tr>
-        <!-- Body -->
         <tr>
           <td style="padding:40px">
             <h2 style="color:#1a3c5e;font-size:22px;margin:0 0 8px">Hey ${firstName}! 👋</h2>
@@ -61,7 +47,6 @@ export const sendVerificationEmail = async (to, fullName, token) => {
             </p>
           </td>
         </tr>
-        <!-- Footer -->
         <tr>
           <td style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center">
             <p style="color:#9ca3af;font-size:11px;margin:0">© 2026 AMACOS · Built by Bukunmi · Flamedev Studio · NEXUS Team 2026/2027</p>
@@ -73,14 +58,16 @@ export const sendVerificationEmail = async (to, fullName, token) => {
 </body>
 </html>`,
   })
+
+  if (error) throw new Error(error.message)
 }
 
 export const sendWelcomeEmail = async (to, fullName) => {
   const firstName = fullName?.split(' ')[0] || 'there'
-  await getTransporter().sendMail({
-    from: `"AMACOS Platform" <${process.env.GMAIL_USER}>`,
+  await resend.emails.send({
+    from: fromAddress(),
     to,
-    subject: '🎉 Welcome to AMACOS — you\'re verified!',
+    subject: "Welcome to AMACOS — you're verified!",
     html: `
 <!DOCTYPE html>
 <html>
