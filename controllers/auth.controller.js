@@ -67,9 +67,17 @@ export const register = async (req, res) => {
       emailVerifyExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
     })
 
-    sendVerificationEmail(email, fullName, verifyToken).catch(err =>
-      console.error('Verification email failed:', err.message)
-    )
+    try {
+      await sendVerificationEmail(email, fullName, verifyToken)
+    } catch (emailErr) {
+      console.error('Verification email failed:', emailErr.message)
+      return res.status(201).json({
+        success: true,
+        needsVerification: true,
+        emailError: emailErr.message,
+        message: `Account created but we failed to send the verification email: ${emailErr.message}`,
+      })
+    }
 
     res.status(201).json({
       success: true,
