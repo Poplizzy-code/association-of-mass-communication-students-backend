@@ -1,8 +1,6 @@
-import crypto from 'crypto'
 import User from '../models/User.model.js'
 import Setting from '../models/Setting.model.js'
 import { generateTokenAndSetCookie } from '../utils/generateToken.js'
-import { sendVerificationEmail, sendWelcomeEmail } from '../utils/mailer.js'
 
 const userPayload = (user) => ({
   _id:              user._id,
@@ -42,48 +40,21 @@ export const register = async (req, res) => {
     }
 
     const existing = await User.findOne({ email })
-    if (existing) {
-      if (!existing.isEmailVerified) {
-        return res.status(400).json({
-          message: 'This email is registered but not yet verified. Check your inbox or resend the verification email.',
-          needsVerification: true,
-          email,
-        })
-      }
-      return res.status(400).json({ message: 'Email already registered.' })
-    }
+    if (existing) return res.status(400).json({ message: 'Email already registered.' })
 
-    const verifyToken = crypto.randomBytes(32).toString('hex')
-    await User.create({
+    const user = await User.create({
       fullName,
       email,
       password,
-      matricNumber:       matricNumber || '',
-      level:              isStaff ? 'staff' : (level || '100'),
-      accountType:        isStaff ? 'staff' : 'student',
-      isLecturer:         isStaff,
-      isEmailVerified:    false,
-      emailVerifyToken:   verifyToken,
-      emailVerifyExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      matricNumber:    matricNumber || '',
+      level:           isStaff ? 'staff' : (level || '100'),
+      accountType:     isStaff ? 'staff' : 'student',
+      isLecturer:      isStaff,
+      isEmailVerified: true,
     })
 
-    try {
-      await sendVerificationEmail(email, fullName, verifyToken)
-    } catch (emailErr) {
-      console.error('Verification email failed:', emailErr.message)
-      return res.status(201).json({
-        success: true,
-        needsVerification: true,
-        emailError: emailErr.message,
-        message: `Account created but we failed to send the verification email: ${emailErr.message}`,
-      })
-    }
-
-    res.status(201).json({
-      success: true,
-      needsVerification: true,
-      message: `Account created! We sent a verification link to ${email}. Please check your inbox (and spam folder).`,
-    })
+    const token = generateTokenAndSetCookie(res, user._id)
+    res.status(201).json({ success: true, user: userPayload(user), token })
   } catch (error) {
     console.error('Register error:', error)
     res.status(500).json({ message: 'Server error during registration.' })
@@ -101,14 +72,6 @@ export const login = async (req, res) => {
     const isMatch = await user.comparePassword(password)
     if (!isMatch) return res.status(401).json({ message: 'Invalid email or password.' })
 
-    if (!user.isEmailVerified) {
-      return res.status(403).json({
-        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
-        needsVerification: true,
-        email,
-      })
-    }
-
     user.lastSeen = new Date()
     await user.save({ validateBeforeSave: false })
     const token = generateTokenAndSetCookie(res, user._id)
@@ -116,56 +79,6 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error)
     res.status(500).json({ message: 'Server error during login.' })
-  }
-}
-
-export const verifyEmail = async (req, res) => {
-  try {
-    const { token } = req.query
-    if (!token) return res.status(400).json({ message: 'Verification token is missing.' })
-
-    const user = await User.findOne({
-      emailVerifyToken: token,
-      emailVerifyExpires: { $gt: new Date() },
-    })
-    if (!user) {
-      return res.status(400).json({ message: 'This verification link is invalid or has expired. Please request a new one.' })
-    }
-
-    user.isEmailVerified    = true
-    user.emailVerifyToken   = ''
-    user.emailVerifyExpires = undefined
-    await user.save({ validateBeforeSave: false })
-
-    sendWelcomeEmail(user.email, user.fullName).catch(() => {})
-
-    const authToken = generateTokenAndSetCookie(res, user._id)
-    res.status(200).json({ success: true, user: userPayload(user), token: authToken })
-  } catch (error) {
-    console.error('Verify email error:', error)
-    res.status(500).json({ message: 'Server error during verification.' })
-  }
-}
-
-export const resendVerification = async (req, res) => {
-  try {
-    const { email } = req.body
-    if (!email) return res.status(400).json({ message: 'Email is required.' })
-
-    const user = await User.findOne({ email })
-    if (!user) return res.status(404).json({ message: 'No account found with this email.' })
-    if (user.isEmailVerified) return res.status(400).json({ message: 'This account is already verified. Please log in.' })
-
-    const verifyToken = crypto.randomBytes(32).toString('hex')
-    user.emailVerifyToken   = verifyToken
-    user.emailVerifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    await user.save({ validateBeforeSave: false })
-
-    await sendVerificationEmail(email, user.fullName, verifyToken)
-    res.json({ success: true, message: `Verification email sent to ${email}.` })
-  } catch (error) {
-    console.error('Resend verification error:', error)
-    res.status(500).json({ message: 'Failed to resend verification email.', debug: error.message })
   }
 }
 
