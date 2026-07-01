@@ -1,19 +1,34 @@
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const clientUrl = () => (process.env.CLIENT_URL || '').split(',')[0].trim() || 'http://localhost:5173'
-const fromAddress = () => process.env.RESEND_FROM || 'AMACOS Platform <onboarding@resend.dev>'
+
+const brevoSend = async (payload) => {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || `Brevo error ${res.status}`)
+  }
+}
+
+const sender = () => ({
+  name: 'AMACOS Platform',
+  email: process.env.BREVO_SENDER_EMAIL || 'okediyabukunmi@gmail.com',
+})
 
 export const sendVerificationEmail = async (to, fullName, token) => {
   const link = `${clientUrl()}/verify-email?token=${token}`
   const firstName = fullName?.split(' ')[0] || 'there'
 
-  const { error } = await resend.emails.send({
-    from: fromAddress(),
-    to,
+  await brevoSend({
+    sender: sender(),
+    to: [{ email: to }],
     subject: 'Verify your AMACOS account',
-    html: `
+    htmlContent: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -58,17 +73,15 @@ export const sendVerificationEmail = async (to, fullName, token) => {
 </body>
 </html>`,
   })
-
-  if (error) throw new Error(error.message)
 }
 
 export const sendWelcomeEmail = async (to, fullName) => {
   const firstName = fullName?.split(' ')[0] || 'there'
-  await resend.emails.send({
-    from: fromAddress(),
-    to,
+  await brevoSend({
+    sender: sender(),
+    to: [{ email: to }],
     subject: "Welcome to AMACOS — you're verified!",
-    html: `
+    htmlContent: `
 <!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif">
